@@ -1,0 +1,13 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>CCSS ESCO Admin</title>
+<style>body{font-family:system-ui;background:#f4f6f8;max-width:900px;margin:auto;padding:20px}section{background:#fff;padding:20px;border-radius:14px;margin:15px 0}input,button{padding:12px;margin:5px 0;width:100%;box-sizing:border-box}button{background:#075e54;color:white;border:0;border-radius:10px;font-weight:700}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stat{padding:16px;background:#eef7f5;border-radius:12px}@media(max-width:600px){.grid{grid-template-columns:1fr}}</style></head>
+<body><h1>CCSS ESCO — Electoral Committee</h1>
+<section><h2>Admin login</h2><input id="email" placeholder="Committee email"><input id="password" type="password" placeholder="Password"><button onclick="login()">Sign in</button><p id="m"></p></section>
+<section id="dash" style="display:none"><h2>Election dashboard</h2><div class="grid"><div class="stat"><b id="eligible">—</b><br>Eligible voters</div><div class="stat"><b id="votes">—</b><br>Votes cast</div><div class="stat"><b id="turnout">—</b><br>Turnout</div></div><button onclick="loadStats()">Refresh statistics</button></section>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script>
+const CONFIG={SUPABASE_URL:"PASTE_YOUR_SUPABASE_URL",SUPABASE_ANON_KEY:"PASTE_YOUR_SUPABASE_ANON_KEY"};let sb;
+if(!CONFIG.SUPABASE_URL.startsWith("PASTE_"))sb=supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY);
+async function login(){if(!sb)return m.textContent="Add Supabase configuration first.";let {error}=await sb.auth.signInWithPassword({email:email.value,password:password.value});if(error)m.textContent=error.message;else{dash.style.display="block";loadStats()}}
+async function loadStats(){let {data:e}=await sb.from("elections").select("id").eq("is_open",true).limit(1).maybeSingle();if(!e)return;
+let a=await sb.from("voters").select("id",{count:"exact",head:true}).eq("election_id",e.id);let v=await sb.from("voters").select("id",{count:"exact",head:true}).eq("election_id",e.id).eq("has_voted",true);eligible.textContent=a.count??0;votes.textContent=v.count??0;turnout.textContent=(a.count?((v.count/a.count)*100).toFixed(1):"0")+"%";}
+</script></body></html>

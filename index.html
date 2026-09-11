@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#128C7E">
+<title>CCSS ESCO Elections</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#efeae2;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:#111b21}
+.top{background:#075e54;color:#fff;padding:18px 18px 22px;position:sticky;top:0;z-index:3}.top small{opacity:.8}.top h1{margin:3px 0 0;font-size:22px}
+.wrap{max-width:720px;margin:auto;padding:18px 14px 100px}.card{background:#fff;border-radius:16px;margin:12px 0;padding:18px;box-shadow:0 1px 3px #0002}
+.status{display:inline-block;background:#d9fdd3;color:#075e54;border-radius:20px;padding:6px 10px;font-weight:700;font-size:13px}
+h2{margin:0 0 8px;font-size:20px}h3{font-size:16px;margin:20px 0 8px}
+p{line-height:1.45}.muted{color:#667781;font-size:13px}
+input{width:100%;padding:14px;border:1px solid #ccd3d7;border-radius:10px;font-size:16px;margin:6px 0 12px}
+button{width:100%;border:0;border-radius:24px;padding:14px;background:#128c7e;color:white;font-weight:700;font-size:16px}
+button.secondary{background:#e9edef;color:#111b21}.choice{display:flex;gap:12px;align-items:center;padding:14px;border:1px solid #e5e7e9;border-radius:12px;margin:8px 0;cursor:pointer}.choice input{width:auto;margin:0}.choice b{display:block}.candidate-note{color:#667781;font-size:12px}
+.success{background:#d9fdd3;border-radius:14px;padding:18px}.error{background:#fce8e6;color:#a33;padding:14px;border-radius:10px}
+.hidden{display:none}.bottom{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #ddd;padding:10px 14px;z-index:4}.bottom button{max-width:720px;display:block;margin:auto}
+</style>
+</head>
+<body>
+<header class="top"><small>CCSS EX-STUDENTS</small><h1>ESCO ONLINE ELECTIONS</h1></header>
+<main class="wrap">
+<section class="card"><span class="status">● ELECTION PORTAL</span><h2 style="margin-top:12px">Your voice. Your vote.</h2><p>Welcome to the official CCSS Ex-Students online voting portal.</p><p class="muted">One eligible member • One ballot • Secure submission</p></section>
+
+<section id="login" class="card">
+<h2>Voter verification</h2>
+<p class="muted">Enter the voter code issued by the Electoral Committee.</p>
+<label for="code">Voter code</label><input id="code" autocomplete="one-time-code" placeholder="CCSS-001">
+<button onclick="verify()">Continue</button>
+<div id="msg"></div>
+</section>
+
+<section id="ballot" class="card hidden">
+<h2>Official ballot</h2><p class="muted" id="welcome"></p>
+<div id="positions"></div>
+</section>
+
+<section id="done" class="card hidden">
+<div class="success"><h2>✓ Vote submitted</h2><p>Your ballot has been recorded.</p><p><b>Confirmation:</b> <span id="receipt"></span></p><p class="muted">Keep this confirmation for your records. It does not reveal your selections.</p></div>
+</section>
+</main>
+<div id="submitbar" class="bottom hidden"><button onclick="submitVote()">Submit my ballot</button></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const CONFIG={SUPABASE_URL:"PASTE_YOUR_SUPABASE_URL",SUPABASE_ANON_KEY:"PASTE_YOUR_SUPABASE_ANON_KEY"};
+const DEMO_POSITIONS=[{id:"president",name:"President",candidates:[{id:"p1",name:"Mbenkum Estelle Diana",bio:"Candidate profile to be completed by the Electoral Committee."}]}];
+let sb=null,voter=null,election=null,positions=DEMO_POSITIONS;
+if(!CONFIG.SUPABASE_URL.startsWith("PASTE_")) sb=supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_ANON_KEY);
+
+function msg(t,ok=false){document.getElementById("msg").innerHTML='<div class="'+(ok?"success":"error")+'">'+t+'</div>'}
+async function verify(){
+ const code=document.getElementById("code").value.trim();
+ if(!code)return msg("Please enter your voter code.");
+ if(!sb){voter={code};return openBallot("Demo voter");}
+ const {data:e}=await sb.from("elections").select("*").eq("is_open",true).limit(1).maybeSingle();
+ if(!e)return msg("Voting is currently closed.");
+ election=e;
+ const {data:v,error}=await sb.from("voters").select("id,name,has_voted").eq("voter_code",code).eq("election_id",e.id).maybeSingle();
+ if(error||!v)return msg("Voter code not recognized.");
+ if(v.has_voted)return msg("This voter code has already been used.");
+ voter=v; openBallot(v.name);
+}
+function openBallot(name){
+ document.getElementById("login").classList.add("hidden");document.getElementById("ballot").classList.remove("hidden");document.getElementById("submitbar").classList.remove("hidden");
+ document.getElementById("welcome").textContent="Voting as "+name+". Select one candidate for each position.";
+ document.getElementById("positions").innerHTML=positions.map(p=>'<h3>'+p.name+'</h3>'+p.candidates.map(c=>'<label class="choice"><input type="radio" name="'+p.id+'" value="'+c.id+'"><span><b>'+c.name+'</b><span class="candidate-note">'+(c.bio||"")+'</span></span></label>').join("")).join("");
+}
+async function submitVote(){
+ for(const p of positions)if(!document.querySelector('input[name="'+p.id+'"]:checked'))return alert("Please select a candidate for "+p.name+".");
+ const choices=Object.fromEntries(positions.map(p=>[p.id,document.querySelector('input[name="'+p.id+'"]:checked').value]));
+ const receipt="CCSS-"+crypto.randomUUID().split("-")[0].toUpperCase();
+ if(sb){
+   const {error}=await sb.rpc("cast_ballot",{p_voter_id:voter.id,p_election_id:election.id,p_choices:choices,p_receipt:receipt});
+   if(error)return alert("Your vote was not submitted. Please contact the Electoral Committee.");
+ } else localStorage.setItem("demo-voted-"+voter.code,"1");
+ document.getElementById("ballot").classList.add("hidden");document.getElementById("submitbar").classList.add("hidden");document.getElementById("done").classList.remove("hidden");document.getElementById("receipt").textContent=receipt;
+}
+</script>
+</body></html>
